@@ -24,7 +24,7 @@ const settings = Object.assign({ home: "RUH", bag: true, seat: false }, store.ge
 let q = store.get("fr_last", null);
 if (!q || q.depart < TODAY) q = { origin: settings.home, destination: "CAI", depart: addDays(TODAY, 14), ret: addDays(TODAY, 21), adults: 1, budget: null, direct: false };
 let calMonth = q.depart.slice(0, 7);
-let lastOffers = [], lastSource = {};
+let lastOffers = [], lastSource = {}, lastNearby = false;
 let runId = 0;
 
 // ---------- تجهيز الواجهة ----------
@@ -115,7 +115,7 @@ async function run() {
   try {
     const r = await api.search(params);
     if (id !== runId) return;
-    lastOffers = r.offers || []; lastSource.search = r.source; renderOffers(); demoBanner();
+    lastOffers = r.offers || []; lastNearby = !!r.nearby; lastSource.search = r.source; renderOffers(); demoBanner();
   } catch (e) { if (id === runId) $("offers").innerHTML = `<div class="empty">${esc(e.userMessage || "مقدرناش نجيب الأسعار دلوقتي. جرّب تاني بعد شوية.")}</div>`; }
   try {
     const r = await api.alternates(params);
@@ -142,7 +142,8 @@ function renderOffers() {
   if (!lastOffers.length) { $("offers").innerHTML = `<div class="empty">مفيش أسعار محفوظة للتاريخ ده. جرّب يوم تاني من التقويم، أو دوّر في <a href="${gflights(q.origin, q.destination, q.depart, q.ret, q.adults)}" target="_blank" rel="noopener">Google Flights</a>.</div>`; return; }
   const list = lastOffers.map(o => ({ o, c: realCost(o) })).sort((x, y) => x.c.total - y.c.total);
   const cheapestTicket = list.reduce((m, x) => x.o.price < m.o.price ? x : m, list[0]);
-  $("offers").innerHTML = list.slice(0, 12).map((x, i) => {
+  const nearNote = lastNearby ? `<div class="banner demo">مفيش أسعار محفوظة ليوم ${prettyDate(q.depart)} بالظبط، فدي أقرب الأيام قبله وبعده (التاريخ مكتوب جنب كل رحلة).</div>` : "";
+  $("offers").innerHTML = nearNote + list.slice(0, 12).map((x, i) => {
     const { o, c } = x, a = c.a;
     const badges = [];
     if (i === 0) badges.push(`<span class="badge">الأفضل بعد الإضافات</span>`);
@@ -153,7 +154,7 @@ function renderOffers() {
     const parts = [`التذكرة ${fmt(o.price)}`];
     if (c.bag) parts.push(`شنطة ${fmt(c.bag)}`); else if (settings.bag && a.known) parts.push("الشنطة مشمولة");
     if (c.seat) parts.push(`مقعد ${fmt(c.seat)}`);
-    const leg = (from, to, at, d, stops) => `<div class="leg"><span class="t">${esc(from)} ${at ? esc(at.slice(11, 16)) : ""}</span><span class="dash"></span><span class="o-meta">${dur(d)}${d != null ? " · " : ""}${stopsTxt(stops ?? 0)}</span><span class="dash"></span><span class="t">${esc(to)}</span></div>`;
+    const leg = (from, to, at, d, stops) => `<div class="leg"><span class="t">${esc(from)} ${at ? esc(at.slice(11, 16)) : ""}</span>${o.nearby && at ? `<span class="o-meta">${prettyDate(at.slice(0, 10))}</span>` : ""}<span class="dash"></span><span class="o-meta">${dur(d)}${d != null ? " · " : ""}${stopsTxt(stops ?? 0)}</span><span class="dash"></span><span class="t">${esc(to)}</span></div>`;
     return `<article class="offer${i === 0 ? " best" : ""}">
       <div class="o-top">
         <div class="o-air"><span class="o-code">${esc(o.flight || o.airline)}</span><div><div class="o-name">${esc(a.name)}</div>${badges.length ? `<div class="badges">${badges.join("")}</div>` : ""}</div></div>

@@ -79,7 +79,20 @@ async function search(env, q) {
   const params = { origin: q.origin, destination: q.destination, departure_at: q.depart, one_way: q.ret ? "false" : "true", direct: q.direct ? "true" : "false" };
   if (q.ret) params.return_at = q.ret;
   const data = await tp(env, params);
-  return { source: "live", offers: data.map(x => normalize(env, x)) };
+  if (data.length) return { source: "live", offers: data.map(x => normalize(env, x)) };
+
+  // مفيش أسعار محفوظة لليوم ده بالظبط: نجيب أقرب أيام (± 3 أيام) في نفس الشهر
+  const near = { ...params, departure_at: q.depart.slice(0, 7), limit: "200" };
+  if (q.ret) near.return_at = q.ret.slice(0, 7);
+  const day = s => Date.parse(String(s).slice(0, 10) + "T00:00:00Z") / 86400000;
+  const want = day(q.depart), len = q.ret ? day(q.ret) - want : null;
+  const around = (await tp(env, near)).filter(x => {
+    const d = day(x.departure_at);
+    if (Math.abs(d - want) > 3) return false;
+    if (len != null && x.return_at && Math.abs((day(x.return_at) - d) - len) > 2) return false;
+    return true;
+  });
+  return { source: "live", nearby: around.length > 0, offers: around.map(x => ({ ...normalize(env, x), nearby: true })) };
 }
 
 async function calendar(env, q) {
