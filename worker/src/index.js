@@ -74,25 +74,52 @@ function normalize(env, x) {
   };
 }
 
+const day = s => Date.parse(String(s).slice(0, 10) + "T00:00:00Z") / 86400000;
+
+// رحلات اتجاه واحد في يوم معيّن، ولو مفيش: أقرب أيام (± 3) في نفس الشهر
+async function oneWay(env, from, to, date, direct) {
+  const base = { origin: from, destination: to, one_way: "true", direct: direct ? "true" : "false" };
+  const exact = await tp(env, { ...base, departure_at: date });
+  if (exact.length) return { list: exact.map(x => normalize(env, x)), nearby: false };
+  const want = day(date);
+  const around = (await tp(env, { ...base, departure_at: date.slice(0, 7), limit: "200" }))
+    .filter(x => Math.abs(day(x.departure_at) - want) <= 3)
+    .sort((a, b) => a.price - b.price);
+  return { list: around.map(x => ({ ...normalize(env, x), nearby: true })), nearby: around.length > 0 };
+}
+
 async function search(env, q) {
   if (!env.TP_TOKEN) return { source: "demo", offers: mockSearch(q) };
-  const params = { origin: q.origin, destination: q.destination, departure_at: q.depart, one_way: q.ret ? "false" : "true", direct: q.direct ? "true" : "false" };
-  if (q.ret) params.return_at = q.ret;
+  if (!q.ret) {
+    const r = await oneWay(env, q.origin, q.destination, q.depart, q.direct);
+    return { source: "live", nearby: r.nearby, offers: r.list };
+  }
+  // ذهاب وعودة بتذكرة واحدة
+  const params = { origin: q.origin, destination: q.destination, departure_at: q.depart, return_at: q.ret, one_way: "false", direct: q.direct ? "true" : "false" };
   const data = await tp(env, params);
   if (data.length) return { source: "live", offers: data.map(x => normalize(env, x)) };
 
-  // مفيش أسعار محفوظة لليوم ده بالظبط: نجيب أقرب أيام (± 3 أيام) في نفس الشهر
-  const near = { ...params, departure_at: q.depart.slice(0, 7), limit: "200" };
-  if (q.ret) near.return_at = q.ret.slice(0, 7);
-  const day = s => Date.parse(String(s).slice(0, 10) + "T00:00:00Z") / 86400000;
-  const want = day(q.depart), len = q.ret ? day(q.ret) - want : null;
-  const around = (await tp(env, near)).filter(x => {
-    const d = day(x.departure_at);
-    if (Math.abs(d - want) > 3) return false;
-    if (len != null && x.return_at && Math.abs((day(x.return_at) - d) - len) > 2) return false;
-    return true;
-  });
-  return { source: "live", nearby: around.length > 0, offers: around.map(x => ({ ...normalize(env, x), nearby: true })) };
+  // مفيش: نركّب أرخص ذهاب + أرخص عودة (تذكرتين منفصلتين)
+  const [out, back] = await Promise.all([
+    oneWay(env, q.origin, q.destination, q.depart, q.direct),
+    oneWay(env, q.destination, q.origin, q.ret, q.direct),
+  ]);
+  if (!out.list.length || !back.list.length) return { source: "live", offers: [] };
+  const backs = [...back.list].sort((a, b) => a.price - b.price).slice(0, 3);
+  const offers = [];
+  for (const o of out.list.slice(0, 8)) {
+    // نختار أرخص عودة، ولو فيه عودة بنفس الشركة بفرق بسيط نفضّلها
+    const same = backs.find(b => b.airline === o.airline);
+    const b = same && same.price - backs[0].price <= 50 ? same : backs[0];
+    if (day(b.depart_at) <= day(o.depart_at)) continue;
+    offers.push({
+      ...o, combo: true, nearby: o.nearby || b.nearby,
+      return_at: b.depart_at, return_transfers: b.transfers, duration_back: b.duration_to,
+      price: o.price + b.price, outPrice: o.price, backPrice: b.price,
+      backAirline: b.airline, backFlight: b.flight, backLink: b.link,
+    });
+  }
+  return { source: "live", nearby: out.nearby || back.nearby, combo: true, offers };
 }
 
 async function calendar(env, q) {

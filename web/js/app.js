@@ -24,7 +24,7 @@ const settings = Object.assign({ home: "RUH", bag: true, seat: false }, store.ge
 let q = store.get("fr_last", null);
 if (!q || q.depart < TODAY) q = { origin: settings.home, destination: "CAI", depart: addDays(TODAY, 14), ret: addDays(TODAY, 21), adults: 1, budget: null, direct: false };
 let calMonth = q.depart.slice(0, 7);
-let lastOffers = [], lastSource = {}, lastNearby = false;
+let lastOffers = [], lastSource = {}, lastNearby = false, lastCombo = false;
 let runId = 0;
 
 // ---------- تجهيز الواجهة ----------
@@ -115,7 +115,7 @@ async function run() {
   try {
     const r = await api.search(params);
     if (id !== runId) return;
-    lastOffers = r.offers || []; lastNearby = !!r.nearby; lastSource.search = r.source; renderOffers(); demoBanner();
+    lastOffers = r.offers || []; lastNearby = !!r.nearby; lastCombo = !!r.combo; lastSource.search = r.source; renderOffers(); demoBanner();
   } catch (e) { if (id === runId) $("offers").innerHTML = `<div class="empty">${esc(e.userMessage || "مقدرناش نجيب الأسعار دلوقتي. جرّب تاني بعد شوية.")}</div>`; }
   try {
     const r = await api.alternates(params);
@@ -128,9 +128,12 @@ function demoBanner() { $("demoBanner").hidden = !Object.values(lastSource).incl
 
 // ---------- السعر الحقيقي ----------
 function realCost(o) {
-  const a = airline(o.airline), legs = o.return_at || q.ret ? 2 : 1, n = q.adults || 1;
-  const bag = settings.bag ? a.bag * legs : 0, seat = settings.seat ? a.seat * legs : 0;
-  return { a, bag, seat, per: o.price + bag + seat, total: (o.price + bag + seat) * n, n };
+  const a = airline(o.airline), n = q.adults || 1;
+  const hasBack = !!(o.return_at || q.ret);
+  const b = o.combo && o.backAirline ? airline(o.backAirline) : a; // شركة العودة لو تذكرتين منفصلتين
+  const bag = settings.bag ? a.bag + (hasBack ? b.bag : 0) : 0;
+  const seat = settings.seat ? a.seat + (hasBack ? b.seat : 0) : 0;
+  return { a, b, bag, seat, per: o.price + bag + seat, total: (o.price + bag + seat) * n, n };
 }
 
 function gflights(origin, destination, depart, ret, adults, nonstop) {
@@ -142,7 +145,10 @@ function renderOffers() {
   if (!lastOffers.length) { $("offers").innerHTML = `<div class="empty">مفيش أسعار محفوظة للتاريخ ده. جرّب يوم تاني من التقويم، أو دوّر في <a href="${gflights(q.origin, q.destination, q.depart, q.ret, q.adults)}" target="_blank" rel="noopener">Google Flights</a>.</div>`; return; }
   const list = lastOffers.map(o => ({ o, c: realCost(o) })).sort((x, y) => x.c.total - y.c.total);
   const cheapestTicket = list.reduce((m, x) => x.o.price < m.o.price ? x : m, list[0]);
-  const nearNote = lastNearby ? `<div class="banner demo">مفيش أسعار محفوظة ليوم ${prettyDate(q.depart)} بالظبط، فدي أقرب الأيام قبله وبعده (التاريخ مكتوب جنب كل رحلة).</div>` : "";
+  const notes = [];
+  if (lastCombo) notes.push("مفيش تذكرة ذهاب وعودة محفوظة للخط ده، فركّبنا أرخص ذهاب مع أرخص عودة. دول تذكرتين منفصلتين بتحجز كل واحدة لوحدها.");
+  if (lastNearby) notes.push(`مفيش أسعار محفوظة لتواريخك بالظبط، فدي أقرب الأيام قبلها وبعدها (التاريخ مكتوب جنب كل رحلة).`);
+  const nearNote = notes.length ? `<div class="banner demo">${notes.join(" ")}</div>` : "";
   $("offers").innerHTML = nearNote + list.slice(0, 12).map((x, i) => {
     const { o, c } = x, a = c.a;
     const badges = [];
@@ -150,14 +156,15 @@ function renderOffers() {
     if (x === cheapestTicket && i !== 0) badges.push(`<span class="badge stop">أرخص تذكرة، بس الإضافات بتغليها</span>`);
     if (q.budget && c.total > q.budget) badges.push(`<span class="badge over">فوق ميزانيتك بـ ${fmt(c.total - q.budget)}</span>`);
     if (q.budget && c.total <= q.budget) badges.push(`<span class="badge">في حدود ميزانيتك</span>`);
-    if (!a.known) badges.push(`<span class="badge stop">رسوم الإضافات مش معروفة</span>`);
-    const parts = [`التذكرة ${fmt(o.price)}`];
+    if (!a.known || !c.b.known) badges.push(`<span class="badge stop">رسوم الإضافات مش معروفة</span>`);
+    if (o.combo) badges.push(`<span class="badge stop">تذكرتين منفصلتين</span>`);
+    const parts = o.combo ? [`ذهاب ${fmt(o.outPrice)}`, `عودة ${fmt(o.backPrice)}`] : [`التذكرة ${fmt(o.price)}`];
     if (c.bag) parts.push(`شنطة ${fmt(c.bag)}`); else if (settings.bag && a.known) parts.push("الشنطة مشمولة");
     if (c.seat) parts.push(`مقعد ${fmt(c.seat)}`);
-    const leg = (from, to, at, d, stops) => `<div class="leg"><span class="t">${esc(from)} ${at ? esc(at.slice(11, 16)) : ""}</span>${o.nearby && at ? `<span class="o-meta">${prettyDate(at.slice(0, 10))}</span>` : ""}<span class="dash"></span><span class="o-meta">${dur(d)}${d != null ? " · " : ""}${stopsTxt(stops ?? 0)}</span><span class="dash"></span><span class="t">${esc(to)}</span></div>`;
+    const leg = (from, to, at, d, stops) => `<div class="leg"><span class="t">${esc(from)} ${at ? esc(at.slice(11, 16)) : ""}</span>${(o.nearby || o.combo) && at ? `<span class="o-meta">${prettyDate(at.slice(0, 10))}</span>` : ""}<span class="dash"></span><span class="o-meta">${dur(d)}${d != null ? " · " : ""}${stopsTxt(stops ?? 0)}</span><span class="dash"></span><span class="t">${esc(to)}</span></div>`;
     return `<article class="offer${i === 0 ? " best" : ""}">
       <div class="o-top">
-        <div class="o-air"><span class="o-code">${esc(o.flight || o.airline)}</span><div><div class="o-name">${esc(a.name)}</div>${badges.length ? `<div class="badges">${badges.join("")}</div>` : ""}</div></div>
+        <div class="o-air"><span class="o-code">${esc(o.flight || o.airline)}</span><div><div class="o-name">${esc(a.name)}${o.combo && c.b.code !== a.code ? " + " + esc(c.b.name) : ""}</div>${badges.length ? `<div class="badges">${badges.join("")}</div>` : ""}</div></div>
         <div class="o-price"><div class="o-total">${fmt(c.total)} <small>ريال${c.n > 1 ? ` لـ ${c.n} مسافرين` : ""}</small></div><div class="o-break">${parts.join(" + ")}${c.n > 1 ? " · للفرد" : ""}</div></div>
       </div>
       <div class="o-legs">
@@ -165,9 +172,11 @@ function renderOffers() {
         ${o.return_at ? leg(o.destination, o.origin, o.return_at, o.duration_back, o.return_transfers) : ""}
       </div>
       <div class="o-actions">
-        <a class="primary" href="${esc(a.url)}" target="_blank" rel="noopener">احجز من موقع ${esc(a.name)} ↗</a>
+        <a class="primary" href="${esc(a.url)}" target="_blank" rel="noopener">احجز ${o.combo ? "الذهاب " : ""}من موقع ${esc(a.name)} ↗</a>
+        ${o.combo ? `<a class="primary" href="${esc(c.b.url)}" target="_blank" rel="noopener">احجز العودة من موقع ${esc(c.b.name)} ↗</a>` : ""}
         <a class="ghost" href="${gflights(o.origin, o.destination, (o.depart_at || q.depart).slice(0, 10), o.return_at ? o.return_at.slice(0, 10) : q.ret, q.adults, o.transfers === 0)}" target="_blank" rel="noopener">أكّد السعر في Google Flights</a>
-        ${o.link ? `<a class="ghost" href="${esc(o.link)}" target="_blank" rel="noopener">العرض في Aviasales</a>` : ""}
+        ${o.link ? `<a class="ghost" href="${esc(o.link)}" target="_blank" rel="noopener">${o.combo ? "الذهاب" : "العرض"} في Aviasales</a>` : ""}
+        ${o.backLink ? `<a class="ghost" href="${esc(o.backLink)}" target="_blank" rel="noopener">العودة في Aviasales</a>` : ""}
       </div>
     </article>`;
   }).join("");
