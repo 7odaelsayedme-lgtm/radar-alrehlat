@@ -25,7 +25,9 @@ export async function tg(env, method, body) {
   const r = await fetch(`https://api.telegram.org/bot${env.TG_TOKEN}/${method}`, {
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
   });
-  return r.json();
+  const j = await r.json();
+  if (env.__trace) env.__trace.push({ method, ok: j.ok, error: j.ok ? undefined : j.description });
+  return j;
 }
 const send = (env, chat_id, text, keyboard) => tg(env, "sendMessage", {
   chat_id, text, parse_mode: "HTML", disable_web_page_preview: true,
