@@ -1,0 +1,11 @@
+name = "flight-radar-api"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+# المفاتيح السرية ماتتكتبش هنا. حطها بالأوامر دي:
+#   npx wrangler secret put TP_TOKEN     (مفتاح Travelpayouts)
+#   npx wrangler secret put TP_MARKER    (رقم الـ marker بتاعك عشان العمولة — اختياري)
+
+[vars]
+# بعد ما ترفع الموقع، حط رابطه هنا عشان محدش غيرك يستخدم الخادم
+ALLOWED_ORIGIN = "*"
