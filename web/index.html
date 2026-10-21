@@ -5,46 +5,80 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>رادار الرحلات</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="اكتب رحلتك بالكلام، وشوف أرخص يوم والمطارات البديلة والسعر الحقيقي بعد الشنطة والمقعد، واحجز من موقع شركة الطيران الرسمي.">
-<meta name="theme-color" content="#12263A">
+<meta name="description" content="قول رايح فين بالكلام، والرادار يلاقيلك أرخص يوم وأقرب مطار والسعر الحقيقي بعد الشنطة والمقعد، واحجز من موقع شركة الطيران الرسمي.">
+<meta name="theme-color" content="#08131F">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Changa:wght@500;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
 <link rel="stylesheet" href="css/app.css">
+<script>try{var t=localStorage.getItem("fr_theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand">
-      <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" stroke-width="2" opacity=".35"/><circle cx="16" cy="16" r="8" fill="none" stroke="currentColor" stroke-width="2" opacity=".6"/><path d="M16 16 L27 8" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round"/><circle cx="16" cy="16" r="2.5" fill="var(--accent)"/></svg>
+    <a class="brand" href="./" aria-label="رادار الرحلات، الصفحة الرئيسية">
+      <span class="radar" aria-hidden="true"><i></i></span>
       <span>رادار الرحلات</span>
+    </a>
+    <div class="top-actions">
+      <button class="icon-btn" id="themeBtn" type="button" aria-label="بدّل بين الوضع الفاتح والغامق">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>
+      </button>
+      <button class="ghost small" id="settingsBtn" type="button" aria-expanded="false" aria-controls="settings">إعداداتي</button>
     </div>
-    <button class="ghost small" id="settingsBtn" aria-expanded="false" aria-controls="settings">إعداداتي</button>
   </header>
 
   <section class="settings" id="settings" hidden>
     <label>مطاري الأساسي
       <select id="homeAirport"></select>
     </label>
-    <p class="hint">لو كتبت وجهة بس، هنحسب إنك مسافر من المطار ده.</p>
+    <p class="hint">لو كتبت الوجهة بس، الرادار هيحسب إنك مسافر من المطار ده.</p>
   </section>
 
-  <section class="ask">
-    <label for="query" class="ask-label">اكتب رحلتك بالكلام</label>
-    <div class="ask-row">
-      <input id="query" type="text" autocomplete="off" placeholder="مثلًا: من جدة للقاهرة أول الشهر الجاي لمدة أسبوع بأقل من 1500 ريال">
-      <button id="askBtn" class="primary">ابحث</button>
+  <section class="hero">
+    <p class="eyebrow">صالة المغادرة · أسعار حقيقية · حجز من موقع الشركة</p>
+    <h1>قول رايح فين،<br><span>والرادار يلاقي أرخص طريق.</span></h1>
+
+    <div class="ask">
+      <label for="query" class="sr">اكتب رحلتك بالكلام</label>
+      <div class="ask-row">
+        <input id="query" type="text" autocomplete="off" enterkeyhint="search" placeholder="مثلًا: من جدة للقاهرة أول الشهر الجاي لمدة أسبوع بأقل من 1500 ريال">
+        <button id="askBtn" class="primary" type="button">
+          <span>ابحث</span>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5Z" transform="rotate(-90 12 12)"/></svg>
+        </button>
+      </div>
+      <div class="examples" id="examples"></div>
+      <div class="understood" id="understood" aria-live="polite"></div>
     </div>
-    <div class="examples" id="examples"></div>
-    <div class="understood" id="understood" aria-live="polite"></div>
+
+    <div class="board" id="board" role="group" aria-label="لوحة الرحلة">
+      <div class="board-head">
+        <span class="board-title">DEPARTURES</span>
+        <span class="board-title ar">المغادرة</span>
+        <span class="board-status" id="boardStatus">جاهز</span>
+      </div>
+      <div class="board-row">
+        <div class="cell"><span class="cap">من</span><span class="flaps" id="bFrom" dir="ltr"></span><span class="sub" id="bFromName"></span></div>
+        <div class="cell arrow" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5Z" transform="rotate(-90 12 12)"/></svg></div>
+        <div class="cell"><span class="cap">إلى</span><span class="flaps" id="bTo" dir="ltr"></span><span class="sub" id="bToName"></span></div>
+        <div class="cell"><span class="cap">الذهاب</span><span class="flaps" id="bDep" dir="ltr"></span><span class="sub" id="bDepAr"></span></div>
+        <div class="cell"><span class="cap">العودة</span><span class="flaps" id="bRet" dir="ltr"></span><span class="sub" id="bRetAr"></span></div>
+        <div class="cell price"><span class="cap">أفضل سعر حقيقي</span><span class="flaps" id="bPrice" dir="ltr"></span><span class="sub" id="bPriceSub">ريال</span></div>
+      </div>
+    </div>
   </section>
 
-  <form class="pass" id="form" novalidate>
-    <div class="pass-main">
-      <div class="fields">
+  <details class="tune" id="tune">
+    <summary>
+      <span>عدّل تفاصيل الرحلة</span>
+      <span class="hint">المطارات، التواريخ، عدد المسافرين، الميزانية</span>
+    </summary>
+    <form id="form" novalidate>
+      <div class="fields route">
         <label>من<input id="from" list="airports" autocomplete="off"></label>
         <button type="button" class="swap" id="swap" aria-label="بدّل المغادرة والوصول">⇄</button>
         <label>إلى<input id="to" list="airports" autocomplete="off"></label>
@@ -60,56 +94,58 @@
         <button type="submit" class="primary">حدّث النتائج</button>
         <span class="err" id="err" role="alert"></span>
       </div>
-    </div>
-    <div class="stub" aria-hidden="true">
-      <div class="eyebrow">بطاقة الرحلة</div>
-      <div class="route" id="routeView"></div>
-      <div class="stub-date" id="dateView"></div>
-    </div>
-  </form>
+    </form>
+  </details>
   <datalist id="airports"></datalist>
 
-  <div id="demoBanner" class="banner demo" hidden>بيانات تجريبية: الأسعار دي مثال بس عشان تشوف شكل التطبيق. هتبقى حقيقية أول ما نربط مفتاح Travelpayouts.</div>
+  <div id="demoBanner" class="banner warn" hidden>بيانات تجريبية: الأسعار دي مثال بس، لأن الخادم مش متاح دلوقتي.</div>
   <div id="seasonBox"></div>
 
   <main class="grid">
-    <section class="results">
+    <section class="results" aria-labelledby="resH">
       <div class="sec-head">
-        <h2>أفضل الرحلات</h2>
-        <div class="toggles">
-          <label class="check"><input type="checkbox" id="bag" checked> معايا شنطة شحن</label>
-          <label class="check"><input type="checkbox" id="seat"> هختار مقعدي</label>
+        <div>
+          <p class="eyebrow">بطاقات الصعود</p>
+          <h2 id="resH">أفضل الرحلات</h2>
+        </div>
+        <div class="toggles" role="group" aria-label="الإضافات">
+          <label class="pill-toggle"><input type="checkbox" id="bag" checked><span>شنطة شحن</span></label>
+          <label class="pill-toggle"><input type="checkbox" id="seat"><span>اختيار مقعد</span></label>
         </div>
       </div>
-      <p class="hint">مترتبة بالسعر الحقيقي بعد الإضافات. رسوم الشنطة والمقعد تقديرية، وأكّد السعر النهائي في موقع الشركة قبل الدفع.</p>
+      <p class="hint">مترتبة بالسعر الحقيقي بعد الإضافات. رسوم الشنطة والمقعد تقديرية، فأكّد السعر النهائي في موقع الشركة قبل الدفع.</p>
       <div id="offers" class="offers"></div>
     </section>
 
     <aside class="side">
-      <section class="cal">
+      <section class="panel cal" aria-labelledby="calH">
         <div class="sec-head">
-          <h2>تقويم الأسعار</h2>
+          <div>
+            <p class="eyebrow">أرخص يوم</p>
+            <h2 id="calH">تقويم الأسعار</h2>
+          </div>
           <div class="cal-nav">
-            <button class="ghost small" id="calPrev" aria-label="الشهر اللي قبله">‹</button>
+            <button class="icon-btn" id="calPrev" type="button" aria-label="الشهر اللي قبله">›</button>
             <span id="calMonth"></span>
-            <button class="ghost small" id="calNext" aria-label="الشهر اللي بعده">›</button>
+            <button class="icon-btn" id="calNext" type="button" aria-label="الشهر اللي بعده">‹</button>
           </div>
         </div>
-        <p class="hint">أرخص سعر ذهاب لكل يوم. دوس على أي يوم عشان تبحث فيه.</p>
         <div class="cal-grid" id="calGrid"></div>
-        <div class="legend"><span class="sw l1"></span>أرخص<span class="sw l3"></span><span class="sw l5"></span>أغلى<span class="sw season"></span>موسم</div>
+        <div class="legend"><span>أرخص</span><span class="ramp" aria-hidden="true"></span><span>أغلى</span><span class="sw-season" aria-hidden="true"></span><span>موسم</span></div>
+        <p class="hint">سعر الذهاب لكل يوم. دوس على أي يوم والرادار يبحث فيه.</p>
       </section>
 
-      <section class="alts">
-        <h2>مطارات بديلة</h2>
-        <p class="hint">ساعات السفر من مطار قريب بيوفّر، حتى بعد تكلفة المشوار.</p>
+      <section class="panel alts" aria-labelledby="altH">
+        <p class="eyebrow">من نفس البلد</p>
+        <h2 id="altH">مطارات قريبة</h2>
         <div id="altList"></div>
       </section>
     </aside>
   </main>
 
   <footer class="foot">
-    الأسعار من Travelpayouts (Aviasales) وبتتحدث من عمليات بحث حديثة، فممكن تختلف شوية عن سعر اللحظة. الحجز بيتم في موقع شركة الطيران أو Google Flights، مش هنا.
+    <span class="radar small" aria-hidden="true"><i></i></span>
+    الأسعار من Travelpayouts (Aviasales)، ومصدرها عمليات بحث حديثة، فممكن تختلف شوية عن سعر اللحظة. الحجز بيتم في موقع شركة الطيران أو Google Flights.
   </footer>
 </div>
 <script type="module" src="js/app.js"></script>

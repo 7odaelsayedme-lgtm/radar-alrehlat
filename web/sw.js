@@ -1,5 +1,5 @@
 // يخلّي الموقع يفتح بسرعة ويشتغل كتطبيق. الأسعار دايمًا من النت؛ الملفات الثابتة من الكاش.
-const CACHE = "radar-v2";
+const CACHE = "radar-v3";
 const SHELL = ["./", "index.html", "css/app.css", "js/app.js", "js/data.js", "js/nlp.js", "js/api.js", "js/mock.js", "js/config.js", "icon.svg", "manifest.webmanifest"];
 self.addEventListener("install", e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener("activate", e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));

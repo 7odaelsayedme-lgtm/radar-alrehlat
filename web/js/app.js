@@ -60,9 +60,56 @@ function fillForm() {
   $("depart").value = q.depart || ""; $("ret").value = q.ret || "";
   $("adults").value = String(q.adults || 1); $("budget").value = q.budget || ""; $("direct").checked = !!q.direct;
   $("depart").min = TODAY; $("ret").min = q.depart || TODAY;
-  $("routeView").innerHTML = `${esc(q.origin || "???")} <span>${q.ret ? "⇄" : "→"}</span> ${esc(q.destination || "???")}`;
-  $("dateView").textContent = (q.depart || "") + (q.ret ? "  ·  " + q.ret : "");
+  updateBoard(null);
 }
+
+// ---------- لوحة المغادرة (حروف بتتقلب) ----------
+const FLAP_CHARS = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-";
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const MON_EN = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+const dateCode = s => { if (!s) return "------"; const d = new Date(s + "T12:00:00"); return `${pad(d.getDate())} ${MON_EN[d.getMonth()]}`; };
+function flapTo(el, text, width) {
+  text = String(text).toUpperCase().padStart(width, " ").slice(-width);
+  if (el.children.length !== width) el.innerHTML = Array.from({ length: width }, () => `<span class="flap"> </span>`).join("");
+  el.setAttribute("aria-label", text.trim() || "فاضي");
+  const gen = (el._gen = (el._gen || 0) + 1);
+  [...el.children].forEach((cell, i) => {
+    const target = text[i];
+    if (REDUCED || cell.textContent === target) { cell.textContent = target; return; }
+    let steps = 5 + i * 2 + Math.floor(Math.random() * 4);
+    const tick = () => {
+      if (el._gen !== gen) return;
+      steps--;
+      cell.textContent = steps <= 0 ? target : FLAP_CHARS[Math.floor(Math.random() * FLAP_CHARS.length)];
+      cell.classList.remove("tick"); void cell.offsetWidth; cell.classList.add("tick");
+      if (steps > 0) setTimeout(tick, 55);
+    };
+    setTimeout(tick, i * 35);
+  });
+}
+function updateBoard(price) {
+  flapTo($("bFrom"), q.origin || "---", 3);
+  flapTo($("bTo"), q.destination || "---", 3);
+  flapTo($("bDep"), dateCode(q.depart), 6);
+  flapTo($("bRet"), q.ret ? dateCode(q.ret) : "------", 6);
+  $("bFromName").textContent = q.origin ? airportName(q.origin) : "";
+  $("bToName").textContent = q.destination ? airportName(q.destination) : "";
+  $("bDepAr").textContent = q.depart ? prettyDate(q.depart) : "";
+  $("bRetAr").textContent = q.ret ? prettyDate(q.ret) : "ذهاب بس";
+  if (price !== undefined) {
+    flapTo($("bPrice"), price == null ? "-----" : String(Math.round(price)), 5);
+    $("bPriceSub").textContent = price == null ? "ريال" : `ريال${(q.adults || 1) > 1 ? ` لـ ${q.adults} مسافرين` : ""}`;
+  }
+}
+function boardStatus(text, busy) { const b = $("boardStatus"); b.textContent = text; b.classList.toggle("busy", !!busy); }
+
+// ---------- الوضع الفاتح/الغامق ----------
+$("themeBtn").onclick = () => {
+  const root = document.documentElement;
+  const cur = root.dataset.theme || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+  root.dataset.theme = cur === "light" ? "dark" : "light";
+  try { localStorage.setItem("fr_theme", root.dataset.theme); } catch { /* عادي */ }
+};
 function readForm() {
   q = { origin: findAirport($("from").value), destination: findAirport($("to").value), depart: $("depart").value, ret: $("ret").value,
     adults: +$("adults").value || 1, budget: +$("budget").value || null, direct: $("direct").checked };
@@ -108,6 +155,7 @@ async function run() {
   const id = ++runId;
   renderSeasons();
   $("offers").innerHTML = `<div class="skel"></div><div class="skel"></div><div class="skel"></div>`;
+  boardStatus("بيدوّر…", true);
   $("altList").innerHTML = `<div class="skel" style="height:60px"></div>`;
   if (calMonth < TODAY.slice(0, 7)) calMonth = TODAY.slice(0, 7);
   const params = { origin: q.origin, destination: q.destination, depart: q.depart, ret: q.ret, direct: q.direct };
@@ -116,7 +164,7 @@ async function run() {
     const r = await api.search(params);
     if (id !== runId) return;
     lastOffers = r.offers || []; lastNearby = !!r.nearby; lastCombo = !!r.combo; lastSource.search = r.source; renderOffers(); demoBanner();
-  } catch (e) { if (id === runId) $("offers").innerHTML = `<div class="empty">${esc(e.userMessage || "مقدرناش نجيب الأسعار دلوقتي. جرّب تاني بعد شوية.")}</div>`; }
+  } catch (e) { if (id === runId) { boardStatus("فيه مشكلة", false); updateBoard(null); } if (id === runId) $("offers").innerHTML = `<div class="empty">${esc(e.userMessage || "مقدرناش نجيب الأسعار دلوقتي. جرّب تاني بعد شوية.")}</div>`; }
   try {
     const r = await api.alternates(params);
     if (id !== runId) return;
@@ -141,43 +189,65 @@ function gflights(origin, destination, depart, ret, adults, nonstop) {
   return "https://www.google.com/travel/flights?hl=ar&curr=SAR&q=" + encodeURIComponent(text);
 }
 
+const PLANE = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5Z" transform="rotate(-90 12 12)"/></svg>`;
+
 function renderOffers() {
-  if (!lastOffers.length) { $("offers").innerHTML = `<div class="empty">مفيش أسعار محفوظة للتاريخ ده. جرّب يوم تاني من التقويم، أو دوّر في <a href="${gflights(q.origin, q.destination, q.depart, q.ret, q.adults)}" target="_blank" rel="noopener">Google Flights</a>.</div>`; return; }
+  if (!lastOffers.length) {
+    updateBoard(null); boardStatus("مفيش نتايج", false);
+    $("offers").innerHTML = `<div class="empty">مفيش أسعار محفوظة للتاريخ ده. جرّب يوم تاني من التقويم، أو دوّر في <a href="${gflights(q.origin, q.destination, q.depart, q.ret, q.adults)}" target="_blank" rel="noopener">Google Flights</a>.</div>`;
+    return;
+  }
   const list = lastOffers.map(o => ({ o, c: realCost(o) })).sort((x, y) => x.c.total - y.c.total);
+  updateBoard(list[0].c.total);
+  boardStatus(`${list.length} ${list.length === 1 ? "رحلة" : list.length < 11 ? "رحلات" : "رحلة"}`, false);
   const cheapestTicket = list.reduce((m, x) => x.o.price < m.o.price ? x : m, list[0]);
   const notes = [];
   if (lastCombo) notes.push("مفيش تذكرة ذهاب وعودة محفوظة للخط ده، فركّبنا أرخص ذهاب مع أرخص عودة. دول تذكرتين منفصلتين بتحجز كل واحدة لوحدها.");
-  if (lastNearby) notes.push(`مفيش أسعار محفوظة لتواريخك بالظبط، فدي أقرب الأيام قبلها وبعدها (التاريخ مكتوب جنب كل رحلة).`);
-  const nearNote = notes.length ? `<div class="banner demo">${notes.join(" ")}</div>` : "";
+  if (lastNearby) notes.push("مفيش أسعار محفوظة لتواريخك بالظبط، فدي أقرب الأيام قبلها وبعدها (التاريخ مكتوب تحت كل رحلة).");
+  const nearNote = notes.length ? `<div class="banner warn">${notes.join(" ")}</div>` : "";
   $("offers").innerHTML = nearNote + list.slice(0, 12).map((x, i) => {
     const { o, c } = x, a = c.a;
     const badges = [];
-    if (i === 0) badges.push(`<span class="badge">الأفضل بعد الإضافات</span>`);
-    if (x === cheapestTicket && i !== 0) badges.push(`<span class="badge stop">أرخص تذكرة، بس الإضافات بتغليها</span>`);
+    if (x === cheapestTicket && i !== 0) badges.push(`<span class="badge mute">أرخص تذكرة، بس الإضافات بتغليها</span>`);
     if (q.budget && c.total > q.budget) badges.push(`<span class="badge over">فوق ميزانيتك بـ ${fmt(c.total - q.budget)}</span>`);
     if (q.budget && c.total <= q.budget) badges.push(`<span class="badge">في حدود ميزانيتك</span>`);
-    if (!a.known || !c.b.known) badges.push(`<span class="badge stop">رسوم الإضافات مش معروفة</span>`);
-    if (o.combo) badges.push(`<span class="badge stop">تذكرتين منفصلتين</span>`);
-    const parts = o.combo ? [`ذهاب ${fmt(o.outPrice)}`, `عودة ${fmt(o.backPrice)}`] : [`التذكرة ${fmt(o.price)}`];
-    if (c.bag) parts.push(`شنطة ${fmt(c.bag)}`); else if (settings.bag && a.known) parts.push("الشنطة مشمولة");
-    if (c.seat) parts.push(`مقعد ${fmt(c.seat)}`);
-    const leg = (from, to, at, d, stops) => `<div class="leg"><span class="t">${esc(from)} ${at ? esc(at.slice(11, 16)) : ""}</span>${(o.nearby || o.combo) && at ? `<span class="o-meta">${prettyDate(at.slice(0, 10))}</span>` : ""}<span class="dash"></span><span class="o-meta">${dur(d)}${d != null ? " · " : ""}${stopsTxt(stops ?? 0)}</span><span class="dash"></span><span class="t">${esc(to)}</span></div>`;
-    return `<article class="offer${i === 0 ? " best" : ""}">
-      <div class="o-top">
-        <div class="o-air"><span class="o-code">${esc(o.flight || o.airline)}</span><div><div class="o-name">${esc(a.name)}${o.combo && c.b.code !== a.code ? " + " + esc(c.b.name) : ""}</div>${badges.length ? `<div class="badges">${badges.join("")}</div>` : ""}</div></div>
-        <div class="o-price"><div class="o-total">${fmt(c.total)} <small>ريال${c.n > 1 ? ` لـ ${c.n} مسافرين` : ""}</small></div><div class="o-break">${parts.join(" + ")}${c.n > 1 ? " · للفرد" : ""}</div></div>
+    if (o.combo) badges.push(`<span class="badge mute">تذكرتين منفصلتين</span>`);
+    if (!a.known || !c.b.known) badges.push(`<span class="badge mute">رسوم الإضافات مش معروفة</span>`);
+    const rows = o.combo ? [["الذهاب", o.outPrice], ["العودة", o.backPrice]] : [["التذكرة", o.price]];
+    if (settings.bag) rows.push(["شنطة شحن", c.bag || "مشمولة"]);
+    if (settings.seat) rows.push(["اختيار مقعد", c.seat || "مجاني"]);
+    if (c.n > 1) rows.push(["للفرد", c.per], ["المسافرين", `× ${c.n}`]);
+    const showDate = o.nearby || o.combo;
+    const leg = (from, to, at, d, stops, back) => `<div class="leg${back ? " back" : ""}">
+        <div class="pt"><b>${esc(from)}</b><span>${at ? esc(at.slice(11, 16)) : ""}${showDate && at ? " · " + prettyDate(at.slice(0, 10)) : ""}</span></div>
+        <div class="track"><span class="meta">${PLANE}${dur(d)}${d != null ? " · " : ""}${stopsTxt(stops ?? 0)}</span></div>
+        <div class="pt"><b>${esc(to)}</b><span>${esc(airportName(to))}</span></div>
+      </div>`;
+    const names = esc(a.name) + (o.combo && c.b.code !== a.code ? " + " + esc(c.b.name) : "");
+    return `<article class="bp${i === 0 ? " best" : ""}" style="--i:${i}">
+      <div class="bp-main">
+        <div class="bp-head">
+          <span class="mark">${esc(o.airline)}</span>
+          <div><div class="bp-name">${names}</div><span class="bp-flight">${esc(o.flight || "")}${o.combo && o.backFlight ? " · " + esc(o.backFlight) : ""}</span></div>
+          ${badges.length ? `<div class="badges">${badges.join("")}</div>` : ""}
+        </div>
+        <div class="legs">
+          ${leg(o.origin, o.destination, o.depart_at, o.duration_to, o.transfers, false)}
+          ${o.return_at ? leg(o.destination, o.origin, o.return_at, o.duration_back, o.return_transfers, true) : ""}
+        </div>
+        <div class="bp-actions">
+          <a class="primary" href="${esc(a.url)}" target="_blank" rel="noopener">احجز ${o.combo ? "الذهاب " : ""}من ${esc(a.name)} ↗</a>
+          ${o.combo ? `<a class="primary" href="${esc(c.b.url)}" target="_blank" rel="noopener">احجز العودة من ${esc(c.b.name)} ↗</a>` : ""}
+          <a class="ghost" href="${gflights(o.origin, o.destination, (o.depart_at || q.depart).slice(0, 10), o.return_at ? o.return_at.slice(0, 10) : q.ret, q.adults, o.transfers === 0)}" target="_blank" rel="noopener">أكّد في Google Flights</a>
+          ${o.link ? `<a class="ghost" href="${esc(o.link)}" target="_blank" rel="noopener">${o.combo ? "الذهاب" : "العرض"} في Aviasales</a>` : ""}
+          ${o.backLink ? `<a class="ghost" href="${esc(o.backLink)}" target="_blank" rel="noopener">العودة في Aviasales</a>` : ""}
+        </div>
       </div>
-      <div class="o-legs">
-        ${leg(o.origin, o.destination, o.depart_at, o.duration_to, o.transfers)}
-        ${o.return_at ? leg(o.destination, o.origin, o.return_at, o.duration_back, o.return_transfers) : ""}
-      </div>
-      <div class="o-actions">
-        <a class="primary" href="${esc(a.url)}" target="_blank" rel="noopener">احجز ${o.combo ? "الذهاب " : ""}من موقع ${esc(a.name)} ↗</a>
-        ${o.combo ? `<a class="primary" href="${esc(c.b.url)}" target="_blank" rel="noopener">احجز العودة من موقع ${esc(c.b.name)} ↗</a>` : ""}
-        <a class="ghost" href="${gflights(o.origin, o.destination, (o.depart_at || q.depart).slice(0, 10), o.return_at ? o.return_at.slice(0, 10) : q.ret, q.adults, o.transfers === 0)}" target="_blank" rel="noopener">أكّد السعر في Google Flights</a>
-        ${o.link ? `<a class="ghost" href="${esc(o.link)}" target="_blank" rel="noopener">${o.combo ? "الذهاب" : "العرض"} في Aviasales</a>` : ""}
-        ${o.backLink ? `<a class="ghost" href="${esc(o.backLink)}" target="_blank" rel="noopener">العودة في Aviasales</a>` : ""}
-      </div>
+      <aside class="bp-stub">
+        <span class="stub-label">السعر الحقيقي${c.n > 1 ? ` لـ ${c.n} مسافرين` : ""}</span>
+        <div class="total">${fmt(c.total)}<small>ريال</small></div>
+        <ul class="receipt">${rows.map(([k, v]) => `<li><span>${k}</span><b>${typeof v === "number" ? fmt(v) : esc(v)}</b></li>`).join("")}</ul>
+      </aside>
     </article>`;
   }).join("");
 }
@@ -251,7 +321,7 @@ function renderAlternates(options) {
   const base = main ? main.total : null;
   $("altList").innerHTML = [main, ...others].filter(Boolean).map(r => {
     const diff = base != null ? base - r.total : null;
-    const note = r === main ? `<span class="more">خطك الحالي</span>` : diff > 0 ? `<span class="save">توفّر ${fmt(diff)}</span>` : `<span class="more">أغلى بـ ${fmt(-diff)}</span>`;
+    const note = r === main ? `<span class="tag more">خطك الحالي</span>` : diff > 0 ? `<span class="tag save">توفّر ${fmt(diff)} ريال</span>` : `<span class="tag more">أغلى بـ ${fmt(-diff)}</span>`;
     const ground = [r.groundFrom ? `من ${airportName(r.origin)}: ${r.groundFrom}` : "", r.groundTo ? `لـ ${airportName(r.destination)}: ${r.groundTo}` : ""].filter(Boolean).join(" · ");
     return `<div class="alt">
       <span class="r">${esc(r.origin)} → ${esc(r.destination)}</span><span class="v">${fmt(r.total)} ريال</span>
