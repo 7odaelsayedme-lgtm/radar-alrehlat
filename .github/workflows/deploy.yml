@@ -1,0 +1,23 @@
+name: Deploy to Netlify
+on:
+  workflow_dispatch:
+    inputs:
+      proxy_path:
+        description: "Netlify deploy proxy path (one-time)"
+        required: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Tests
+        run: node tests/nlp.test.mjs
+      - name: Deploy
+        env:
+          PROXY_PATH: ${{ inputs.proxy_path }}
+        run: |
+          echo "::add-mask::$PROXY_PATH"
+          npx -y @netlify/mcp@latest --site-id a4c69fef-eaca-4d09-a3a8-0dcea5581d18 --proxy-path "$PROXY_PATH"
