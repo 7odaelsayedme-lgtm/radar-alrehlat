@@ -1,6 +1,8 @@
 import { AIRPORTS, airline, airportName, findAirport, seasonsFor, SEASONS } from "./data.js";
 import { parseRequest } from "./nlp.js";
 import * as api from "./api.js";
+import { verdict, encodeTrip } from "./verdict.js";
+import { API_BASE } from "./config.js";
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -26,6 +28,8 @@ if (!q || q.depart < TODAY) q = { origin: settings.home, destination: "CAI", dep
 let calMonth = q.depart.slice(0, 7);
 let lastOffers = [], lastSource = {}, lastNearby = false, lastCombo = false;
 let runId = 0;
+let lastCalDays = null, botUser = null;
+fetch(`${API_BASE}/api/config`).then(r => r.json()).then(c => { botUser = c.bot || null; renderVerdict(); }).catch(() => {});
 
 // ---------- تجهيز الواجهة ----------
 $("airports").innerHTML = AIRPORTS.map(a => `<option value="${a[0]} — ${esc(a[1])}"></option>`).join("");
@@ -156,6 +160,7 @@ async function run() {
   renderSeasons();
   $("offers").innerHTML = `<div class="skel"></div><div class="skel"></div><div class="skel"></div>`;
   boardStatus("بيدوّر…", true);
+  lastCalDays = null; lastOffers = []; $("verdict").innerHTML = "";
   $("altList").innerHTML = `<div class="skel" style="height:60px"></div>`;
   if (calMonth < TODAY.slice(0, 7)) calMonth = TODAY.slice(0, 7);
   const params = { origin: q.origin, destination: q.destination, depart: q.depart, ret: q.ret, direct: q.direct };
@@ -199,6 +204,7 @@ function renderOffers() {
   }
   const list = lastOffers.map(o => ({ o, c: realCost(o) })).sort((x, y) => x.c.total - y.c.total);
   updateBoard(list[0].c.total);
+  renderVerdict();
   boardStatus(`${list.length} ${list.length === 1 ? "رحلة" : list.length < 11 ? "رحلات" : "رحلة"}`, false);
   const cheapestTicket = list.reduce((m, x) => x.o.price < m.o.price ? x : m, list[0]);
   const notes = [];
@@ -252,6 +258,32 @@ function renderOffers() {
   }).join("");
 }
 
+// ---------- رأي الرادار ----------
+function renderVerdict() {
+  const box = $("verdict");
+  if (!box || (!lastOffers.length && !lastCalDays)) return;
+  const v = verdict({ depart: q.depart, today: TODAY, days: lastCalDays || {} });
+  const alertLink = botUser ? `https://t.me/${encodeURIComponent(botUser)}?start=${encodeTrip(q)}` : null;
+  box.innerHTML = `<section class="verdict v-${v.level}">
+    <div class="v-head">
+      <span class="v-dot" aria-hidden="true"></span>
+      <div><p class="eyebrow">رأي الرادار</p><h3>${esc(v.title)}</h3></div>
+      ${v.daysLeft >= 0 ? `<span class="v-days"><b>${fmt(v.daysLeft)}</b> يوم على السفر</span>` : ""}
+    </div>
+    <ul class="v-reasons">${v.reasons.map(r => `<li>${esc(r)}</li>`).join("")}</ul>
+    ${v.rank != null ? `<div class="gauge" role="img" aria-label="مكان سعر يومك وسط أيام الشهر">
+      <div class="g-bar"><span style="inset-inline-start:${Math.round(v.rank * 100)}%"></span></div>
+      <div class="g-lbl"><span>أرخص يوم في الشهر</span><span>أغلى يوم</span></div></div>` : ""}
+    <div class="v-actions">
+      ${v.cheaperNear ? `<button type="button" class="ghost small" id="vMove">جرّب يوم ${prettyDate(v.cheaperNear)}</button>` : ""}
+      ${alertLink ? `<a class="primary" href="${alertLink}" target="_blank" rel="noopener">🔔 نبّهني على تيليجرام لو السعر نزل</a>` : ""}
+    </div>
+    <p class="hint">تقدير من أسعار الشهر وقرب ميعاد السفر، مش توقّع مضمون.</p>
+  </section>`;
+  const mv = $("vMove");
+  if (mv) mv.onclick = () => { const len = q.ret ? daysBetween(q.depart, q.ret) : 0; q.depart = v.cheaperNear; if (len) q.ret = addDays(q.depart, len); run(); };
+}
+
 // ---------- المواسم ----------
 function renderSeasons() {
   const hits = [...seasonsFor(q.depart, q.origin, q.destination), ...(q.ret ? seasonsFor(q.ret, q.origin, q.destination) : [])]
@@ -286,6 +318,7 @@ async function loadCalendar() {
     if (month !== calMonth || id !== runId) return;
     lastSource.cal = r.source; demoBanner();
     renderCalendar(month, r.days || {});
+    if (month === q.depart.slice(0, 7)) { lastCalDays = r.days || {}; renderVerdict(); }
   } catch { $("calGrid").innerHTML = `<div class="empty" style="grid-column:1/-1">مقدرناش نجيب التقويم.</div>`; }
 }
 function renderCalendar(month, days) {

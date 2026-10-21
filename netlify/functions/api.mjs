@@ -7,6 +7,7 @@ export default async (req, context) => {
     TP_TOKEN: Netlify.env.get("TP_TOKEN"),
     TP_MARKER: Netlify.env.get("TP_MARKER"),
     ALLOWED_ORIGIN: Netlify.env.get("ALLOWED_ORIGIN") || "*",
+    TG_BOT_USERNAME: Netlify.env.get("TG_BOT_USERNAME"),
   };
   return worker.fetch(req, env, { waitUntil: p => context.waitUntil ? context.waitUntil(p) : p });
 };

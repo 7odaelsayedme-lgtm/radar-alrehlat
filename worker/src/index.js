@@ -25,6 +25,7 @@ export default {
       const p = Object.fromEntries(url.searchParams);
       const origin = (p.origin || "").toUpperCase(), destination = (p.destination || "").toUpperCase();
       if (url.pathname === "/api/health") return json({ ok: true, live: !!env.TP_TOKEN }, 200, false);
+      if (url.pathname === "/api/config") return json({ bot: env.TG_BOT_USERNAME || null }, 200, false);
       if (!IATA.test(origin) || !IATA.test(destination)) return json({ error: "اكتب رمز مطار من 3 حروف للمغادرة والوصول" }, 400, false);
 
       // نخزّن النتيجة في كاش Cloudflare (ببلاش)
@@ -88,7 +89,7 @@ async function oneWay(env, from, to, date, direct) {
   return { list: around.map(x => ({ ...normalize(env, x), nearby: true })), nearby: around.length > 0 };
 }
 
-async function search(env, q) {
+export async function search(env, q) {
   if (!env.TP_TOKEN) return { source: "demo", offers: mockSearch(q) };
   if (!q.ret) {
     const r = await oneWay(env, q.origin, q.destination, q.depart, q.direct);
@@ -122,7 +123,7 @@ async function search(env, q) {
   return { source: "live", nearby: out.nearby || back.nearby, combo: true, offers };
 }
 
-async function calendar(env, q) {
+export async function calendar(env, q) {
   if (!env.TP_TOKEN) return { source: "demo", days: mockCalendar(q) };
   const data = await tp(env, { origin: q.origin, destination: q.destination, departure_at: q.month, one_way: "true", limit: "1000" });
   const days = {};

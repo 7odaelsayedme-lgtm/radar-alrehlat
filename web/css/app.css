@@ -203,6 +203,25 @@ label.check{flex-direction:row;align-items:center;gap:8px;font-size:14px;color:v
 .skel{height:150px;border-radius:16px;background:linear-gradient(90deg,var(--panel),var(--panel-2),var(--panel));background-size:200% 100%;animation:sh 1.2s infinite}
 @keyframes sh{to{background-position:-200% 0}}
 
+/* ---------- رأي الرادار ---------- */
+.verdict{--vc:var(--muted);border:1px solid color-mix(in srgb,var(--vc) 45%,var(--line));background:linear-gradient(135deg,color-mix(in srgb,var(--vc) 12%,var(--panel)),var(--panel) 60%);
+  border-radius:16px;padding:16px 18px;display:grid;gap:12px;box-shadow:var(--shadow)}
+.verdict.v-buy{--vc:var(--go)}.verdict.v-wait{--vc:var(--warn)}.verdict.v-move{--vc:var(--amber)}
+.v-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.v-head h3{font-family:var(--display);font-size:24px;margin:0;color:var(--vc);line-height:1.1}
+.verdict.v-neutral .v-head h3{color:var(--ink)}
+.v-dot{width:14px;height:14px;border-radius:50%;background:var(--vc);box-shadow:0 0 0 5px color-mix(in srgb,var(--vc) 22%,transparent);flex:none;animation:pulse 2.4s var(--ease) infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 9px color-mix(in srgb,var(--vc) 6%,transparent)}}
+.v-days{margin-inline-start:auto;font-size:13px;color:var(--muted)}
+.v-days b{font-family:var(--mono);font-size:20px;color:var(--ink);margin-inline-end:4px}
+.v-reasons{margin:0;padding-inline-start:18px;display:grid;gap:2px;font-size:14px}
+.gauge{display:grid;gap:6px;max-width:460px}
+.g-bar{position:relative;height:8px;border-radius:99px;background:linear-gradient(to left,var(--h1),var(--h2),var(--h3),var(--h4),var(--h5))}
+.g-bar span{position:absolute;top:50%;width:18px;height:18px;margin-inline-start:-9px;transform:translateY(-50%);border-radius:50%;background:var(--panel);border:3px solid var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.g-lbl{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+.v-actions{display:flex;flex-wrap:wrap;gap:8px}
+.v-actions:empty{display:none}
+
 /* ---------- calendar ---------- */
 .cal-nav{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px}
 .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
